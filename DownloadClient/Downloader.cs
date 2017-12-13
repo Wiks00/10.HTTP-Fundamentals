@@ -21,15 +21,17 @@ namespace DownloadClient
         private readonly int maxLevel; 
         private readonly Uri startUri;
         private readonly string downloadPath = @"D:\Path\";
+        private readonly ConcurrentHashSet<string> fileExtenthionFilter;
         private readonly DomainFilter filterFlag;
         private readonly HashSet<string> sites = new HashSet<string>();
         private readonly ConcurrentHashSet<string> content = new ConcurrentHashSet<string>();
 
-        public Downloader(Uri uri, DomainFilter filterFlag, int maxLevel = 0)
+        public Downloader(Uri uri, DomainFilter filterFlag, int maxLevel = 0, params string[] fileExtenthionFilter)
         {
             this.maxLevel = maxLevel;
             startUri = uri;
             this.filterFlag = filterFlag;
+            this.fileExtenthionFilter = new ConcurrentHashSet<string>(fileExtenthionFilter);
         }
 
         public event EventHandler<RaiseEventEventArgs> ContentEvent;
@@ -49,13 +51,22 @@ namespace DownloadClient
 
         private async Task StartAsync(HttpClient httpClient, string requestUri, int level)
         {
-            //ToDo: Start event
-
-            Console.WriteLine($"Site {level}: " + httpClient.BaseAddress + requestUri);
+            OnSiteEvent(new RaiseEventEventArgs
+            {
+                EventStage = EventStage.Start,
+                EventName = "Parsing",
+                Message = $"{httpClient.BaseAddress + requestUri} on {level} level"
+            });
 
             if (!sites.Add(httpClient.BaseAddress + requestUri))
             {
-                //ToDo: Skip site even
+                OnSiteEvent(new RaiseEventEventArgs
+                {
+                    EventStage = EventStage.Terminate,
+                    EventName = "Duplicated",
+                    Message = $"{httpClient.BaseAddress + requestUri}"
+                });
+
                 return;
             }
 
@@ -87,7 +98,12 @@ namespace DownloadClient
                             {
                                 if (uri.Host != startUri.Host)
                                 {
-                                    //ToDo: Skiped by domain filter
+                                    OnSiteEvent(new RaiseEventEventArgs
+                                    {
+                                        EventStage = EventStage.Terminate,
+                                        EventName = $"Skiped by {filterFlag} filter",
+                                        Message = $"{uri.AbsoluteUri} on {level} level"
+                                    });
 
                                     continue;
                                 }
@@ -97,7 +113,12 @@ namespace DownloadClient
                             {
                                 if (uri.Host != startUri.Host || uri.Segments.Length > startUri.Segments.Length)
                                 {
-                                    //ToDo: Skiped by Url filter
+                                    OnSiteEvent(new RaiseEventEventArgs
+                                    {
+                                        EventStage = EventStage.Terminate,
+                                        EventName = $"Skiped by {filterFlag} filter",
+                                        Message = $"{uri.AbsoluteUri} on {level} level"
+                                    });
 
                                     continue;
                                 }
@@ -122,7 +143,12 @@ namespace DownloadClient
                             {
                                 if (link.Split('/').Length > startUri.Segments.Length)
                                 {
-                                    //ToDo: Skiped by Url filter
+                                    OnSiteEvent(new RaiseEventEventArgs
+                                    {
+                                        EventStage = EventStage.Terminate,
+                                        EventName = $"Skiped by {filterFlag} filter",
+                                        Message = $"{httpClient.BaseAddress + link} on {level} level"
+                                    });
 
                                     continue;
                                 }
@@ -155,25 +181,45 @@ namespace DownloadClient
             }
             catch (FileRequestException ex)
             {
-                Console.WriteLine(ex.Message);
+                OnContentEvent(new RaiseEventEventArgs
+                {
+                    EventStage = EventStage.Terminate,
+                    EventName = "Exception",
+                    Message = ex.Message
+                });
             }
             catch (HttpRequestException ex)
             {
-                Console.WriteLine(ex.Message);
-                //ToDo: Exception event
+                OnSiteEvent(new RaiseEventEventArgs
+                {
+                    EventStage = EventStage.Terminate,
+                    EventName = "Exception",
+                    Message = ex.Message
+                });
             }
             finally
             {
                 httpClient.Dispose();
 
-                //ToDo: End event
+                OnSiteEvent(new RaiseEventEventArgs
+                {
+                    EventStage = EventStage.End,
+                    EventName = "Parsing",
+                    Message = $"{httpClient.BaseAddress + requestUri} on {level} level"
+                });
             }
         }
 
         private async Task DownloadFile(string fileUri)
         {
             //ToDo: ext filter
-            //ToDo: Call start file event
+
+            OnContentEvent(new RaiseEventEventArgs
+            {
+                EventStage = EventStage.Start,
+                EventName = "Downloading",
+                Message = fileUri
+            });
 
             string fileName;
             byte[] contentData;
@@ -201,7 +247,22 @@ namespace DownloadClient
                     }
                 }
 
-                Console.WriteLine("File: " + fileUri);
+                if (fileName.Contains('.'))
+                {
+                    var fileExt = '.' + fileName.Split('.')[1];
+
+                    if (fileExtenthionFilter.Contains(fileExt))
+                    {
+                        OnContentEvent(new RaiseEventEventArgs
+                        {
+                            EventStage = EventStage.Terminate,
+                            EventName = $"Skiped by filter: {string.Join("; ", fileExtenthionFilter)}",
+                            Message = fileName
+                        });
+
+                        return;
+                    }
+                }
 
                 if (content.Add(fileName))
                 {
@@ -210,17 +271,18 @@ namespace DownloadClient
                         await file.WriteAsync(contentData, 0, contentData.Length);
                     }
                 }
-                else
-                {
-                    //ToDo: Skip file even
-                }
             }
             catch (Exception ex)
             {
                 throw new FileRequestException(ex.Message, ex); 
             }
 
-            //ToDo: Call end file event
+            OnContentEvent(new RaiseEventEventArgs
+            {
+                EventStage = EventStage.End,
+                EventName = "Downloading",
+                Message = downloadPath + fileName
+            });
         }
 
         private HttpClient NewLevel(Uri uri)

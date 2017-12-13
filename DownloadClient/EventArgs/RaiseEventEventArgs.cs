@@ -10,21 +10,16 @@ namespace DownloadClient.EventArgs
     {
         public EventStage EventStage { get; set; }
 
-        public Event EventName { get; set; }
+        public string EventName { get; set; }
 
-        public string[] EventArgs { get; set; }
+        public string Message { get; set; }
     }
 
     public enum EventStage
     {
-        Started = 0,
-        Ended = 1,
-        Terminated = 2,
+        Start = 0,
+        End = 1,
+        Terminate = 2
     }
 
-    public enum Event
-    {
-        File = 0,
-        Site = 1
-    }
 }
