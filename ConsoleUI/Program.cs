@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using DownloadClient;
 using DownloadClient.EventArgs;
+using DownloadClient.Utilities;
 
 namespace ConsoleUI
 {
@@ -14,37 +15,25 @@ namespace ConsoleUI
     {
         static void Main(string[] args)
         {
-            var uri = new Uri("https://www.slideshare.net/peterbuck/download-presentation-in-powerpoint");
+            //~ 10 min
+            var uri = new Uri("https://www.bsuir.by/ru/magistratura");
 
-            var downloader = new Downloader(uri, DomainFilter.Domain, 1, ".js", ".css");
+            var downloader = new Downloader(uri, null, 1, ".js", ".css", ".html", ".php");
 
-            downloader.ContentEvent += DownloaderOnContentEvent;
-            downloader.SiteEvent += DownloaderOnSiteEvent;
+            downloader.ContentEvent += DownloaderOnEvent;
+            downloader.SiteEvent += DownloaderOnEvent;
         
             downloader.Start();
 
             Console.ReadKey();
         }
 
-        private static void DownloaderOnSiteEvent(object sender, RaiseEventEventArgs raiseEventEventArgs)
+        private static void DownloaderOnEvent(object sender, RaiseEventEventArgs raiseEventEventArgs)
         {
-            Console.ForegroundColor = ConsoleColor.Yellow;
             Console.WriteLine(raiseEventEventArgs.EventStage);
             Console.WriteLine(raiseEventEventArgs.EventName);
             Console.WriteLine(raiseEventEventArgs.Message);
 
-            Console.ResetColor();
-            Console.WriteLine();
-        }
-
-        private static void DownloaderOnContentEvent(object sender, RaiseEventEventArgs raiseEventEventArgs)
-        {
-            Console.ForegroundColor = ConsoleColor.Blue;
-            Console.WriteLine(raiseEventEventArgs.EventStage);
-            Console.WriteLine(raiseEventEventArgs.EventName);
-            Console.WriteLine(raiseEventEventArgs.Message);
-
-            Console.ResetColor();
             Console.WriteLine();
         }
     }

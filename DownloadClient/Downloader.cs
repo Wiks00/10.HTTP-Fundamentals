@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Net.Mime;
 using System.Text;
@@ -20,16 +21,48 @@ namespace DownloadClient
     {
         private readonly int maxLevel; 
         private readonly Uri startUri;
-        private readonly string downloadPath = @"D:\Path\";
-        private readonly ConcurrentHashSet<string> fileExtenthionFilter;
+        private readonly string downloadPath;
         private readonly DomainFilter filterFlag;
         private readonly HashSet<string> sites = new HashSet<string>();
         private readonly ConcurrentHashSet<string> content = new ConcurrentHashSet<string>();
+        private readonly ConcurrentHashSet<string> fileExtenthionFilter;
 
-        public Downloader(Uri uri, DomainFilter filterFlag, int maxLevel = 0, params string[] fileExtenthionFilter)
+        public Downloader(Uri uri) : this(uri, null)
+        {           
+        }
+
+        public Downloader(Uri uri, string downloadPath, int maxLevel) : this(uri, downloadPath, DomainFilter.None, maxLevel)
         {
-            this.maxLevel = maxLevel;
+        }
+
+        public Downloader(Uri uri, string downloadPath, params string[] fileExtenthionFilter) : this(uri, downloadPath, DomainFilter.None, 0, fileExtenthionFilter)
+        {
+        }
+
+        public Downloader(Uri uri, string downloadPath, DomainFilter filterFlag, params string[] fileExtenthionFilter) : this(uri, downloadPath, filterFlag, 0, fileExtenthionFilter)
+        {
+        }
+
+        public Downloader(Uri uri, string downloadPath, int maxLevel, params string[] fileExtenthionFilter) : this(uri, downloadPath, DomainFilter.None, maxLevel, fileExtenthionFilter)
+        {
+        }
+
+        public Downloader(Uri uri, string downloadPath, DomainFilter filterFlag = DomainFilter.None, int maxLevel = 0, params string[] fileExtenthionFilter)
+        {
+            if (ReferenceEquals(uri, null))
+            {
+                throw new ArgumentNullException(nameof(uri), "Input parameter can not be null"); 
+            }
+
             startUri = uri;
+            this.downloadPath = downloadPath ?? @"D:\Path\";
+
+            if (!Directory.Exists(this.downloadPath))
+            {
+                Directory.CreateDirectory(this.downloadPath);
+            }
+                   
+            this.maxLevel = maxLevel;         
             this.filterFlag = filterFlag;
             this.fileExtenthionFilter = new ConcurrentHashSet<string>(fileExtenthionFilter);
         }
@@ -55,18 +88,16 @@ namespace DownloadClient
             {
                 EventStage = EventStage.Start,
                 EventName = "Parsing",
-                Message = $"{httpClient.BaseAddress + requestUri} on {level} level"
+                Message = $"{httpClient.BaseAddress + requestUri} at {level} level"
             });
+
+            if (httpClient.BaseAddress + requestUri == "http://distant.bsuir.by//actions/")
+            {
+
+            }
 
             if (!sites.Add(httpClient.BaseAddress + requestUri))
             {
-                OnSiteEvent(new RaiseEventEventArgs
-                {
-                    EventStage = EventStage.Terminate,
-                    EventName = "Duplicated",
-                    Message = $"{httpClient.BaseAddress + requestUri}"
-                });
-
                 return;
             }
 
@@ -102,7 +133,7 @@ namespace DownloadClient
                                     {
                                         EventStage = EventStage.Terminate,
                                         EventName = $"Skiped by {filterFlag} filter",
-                                        Message = $"{uri.AbsoluteUri} on {level} level"
+                                        Message = $"{uri.AbsoluteUri} at {level} level"
                                     });
 
                                     continue;
@@ -117,7 +148,7 @@ namespace DownloadClient
                                     {
                                         EventStage = EventStage.Terminate,
                                         EventName = $"Skiped by {filterFlag} filter",
-                                        Message = $"{uri.AbsoluteUri} on {level} level"
+                                        Message = $"{uri.AbsoluteUri} at {level} level"
                                     });
 
                                     continue;
@@ -147,7 +178,7 @@ namespace DownloadClient
                                     {
                                         EventStage = EventStage.Terminate,
                                         EventName = $"Skiped by {filterFlag} filter",
-                                        Message = $"{httpClient.BaseAddress + link} on {level} level"
+                                        Message = $"{httpClient.BaseAddress + link} at {level} level"
                                     });
 
                                     continue;
@@ -184,7 +215,7 @@ namespace DownloadClient
                 OnContentEvent(new RaiseEventEventArgs
                 {
                     EventStage = EventStage.Terminate,
-                    EventName = "Exception",
+                    EventName = "File exception",
                     Message = ex.Message
                 });
             }
@@ -193,7 +224,16 @@ namespace DownloadClient
                 OnSiteEvent(new RaiseEventEventArgs
                 {
                     EventStage = EventStage.Terminate,
-                    EventName = "Exception",
+                    EventName = "Request exception",
+                    Message = ex.Message
+                });
+            }
+            catch (IOException ex)
+            {
+                OnSiteEvent(new RaiseEventEventArgs
+                {
+                    EventStage = EventStage.Terminate,
+                    EventName = "Read exception",
                     Message = ex.Message
                 });
             }
@@ -205,15 +245,13 @@ namespace DownloadClient
                 {
                     EventStage = EventStage.End,
                     EventName = "Parsing",
-                    Message = $"{httpClient.BaseAddress + requestUri} on {level} level"
+                    Message = $"{httpClient.BaseAddress + requestUri} at {level} level"
                 });
             }
         }
 
         private async Task DownloadFile(string fileUri)
         {
-            //ToDo: ext filter
-
             OnContentEvent(new RaiseEventEventArgs
             {
                 EventStage = EventStage.Start,
@@ -249,7 +287,9 @@ namespace DownloadClient
 
                 if (fileName.Contains('.'))
                 {
-                    var fileExt = '.' + fileName.Split('.')[1];
+                    var splitedName = fileName.Split('.');
+
+                    var fileExt = '.' + splitedName[splitedName.Length - 1];
 
                     if (fileExtenthionFilter.Contains(fileExt))
                     {
@@ -288,7 +328,8 @@ namespace DownloadClient
         private HttpClient NewLevel(Uri uri)
             => new HttpClient
                     {
-                        BaseAddress = new Uri(uri.AbsoluteUri.Replace(uri.AbsolutePath == "/" ? " " : uri.AbsolutePath, string.Empty).Split('?')[0])
+                        BaseAddress = new Uri(uri.AbsoluteUri.Replace(uri.AbsolutePath == "/" ? " " : uri.AbsolutePath, string.Empty).Split('?')[0]),
+                        Timeout = new TimeSpan(0,0,30)
                     };
 
         public void Dispose()
@@ -302,6 +343,7 @@ namespace DownloadClient
             if (disposing)
             {
                 content?.Dispose();
+                fileExtenthionFilter?.Dispose();
             }
         }
 
@@ -309,13 +351,5 @@ namespace DownloadClient
         {
             Dispose(false);
         }
-    }
-
-    [Flags]
-    public enum DomainFilter : byte
-    {
-        Domain = 0,
-        Url = 2,
-        None = 3
     }
 }
