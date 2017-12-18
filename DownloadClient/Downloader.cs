@@ -54,8 +54,13 @@ namespace DownloadClient
                 throw new ArgumentNullException(nameof(uri), "Input parameter can not be null"); 
             }
 
+            if (ReferenceEquals(downloadPath, null))
+            {
+                throw new ArgumentNullException(nameof(downloadPath), "Input parameter can not be null");
+            }
+
             startUri = uri;
-            this.downloadPath = downloadPath ?? @"D:\Path\";
+            this.downloadPath = downloadPath;
 
             if (!Directory.Exists(this.downloadPath))
             {
@@ -306,7 +311,7 @@ namespace DownloadClient
 
                 if (content.Add(fileName))
                 {
-                    using (var file = new FileStream(downloadPath + fileName, FileMode.Create, FileAccess.Write))
+                    using (var file = new FileStream(Path.Combine(downloadPath, fileName), FileMode.Create, FileAccess.Write))
                     {
                         await file.WriteAsync(contentData, 0, contentData.Length);
                     }

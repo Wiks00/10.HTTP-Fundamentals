@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Text;
@@ -18,7 +19,7 @@ namespace ConsoleUI
             //~ 10 min
             var uri = new Uri("https://www.bsuir.by/ru/magistratura");
 
-            var downloader = new Downloader(uri, null, 1, ".js", ".css", ".html", ".php");
+            var downloader = new Downloader(uri, "D:\\Path", 1, ".js", ".css", ".html", ".php");
 
             downloader.ContentEvent += DownloaderOnEvent;
             downloader.SiteEvent += DownloaderOnEvent;
