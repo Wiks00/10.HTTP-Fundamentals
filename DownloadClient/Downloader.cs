@@ -326,7 +326,7 @@ namespace DownloadClient
             {
                 EventStage = EventStage.End,
                 EventName = "Downloading",
-                Message = downloadPath + fileName
+                Message = Path.Combine(downloadPath, fileName)
             });
         }
 
